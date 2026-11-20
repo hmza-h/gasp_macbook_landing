@@ -1,75 +1,126 @@
-import { PresentationControls  } from "@react-three/drei";
+import { PresentationControls } from "@react-three/drei";
 import { useRef } from "react";
 import MacbookModel16 from "../models/Macbook-16";
 import MacbookModel14 from "../models/Macbook-14";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
-const ANIMATION_DURATION = 1; // Duration of the animation in seconds
-const OFFSET_DISTANCE = 5; // Distance to offset the model when switching
+const TRANSITION_DISTANCE = 5;
 
-const fadeMashes = (group, opacity) => {
-    if (!group) return;
+const getMaterials = (group) => {
+  const materials = new Set();
+  group.traverse((child) => {
+    if (!child.isMesh) return;
 
-    group.traverse((child) => {
-        if (child.isMesh) {
-            child.material.transparent = true;
-            gsap.to(child.material, {opacity, duration: ANIMATION_DURATION})
-        }
-    })
-}
+    const meshMaterials = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+    meshMaterials.forEach((material) => materials.add(material));
+  });
+  return [...materials];
+};
 
-const moveGroup = (group, x) => {
-    if (!group) return;
+const ModelSwitcher = ({ scale, isMobile }) => {
+  const smallMacbookRef = useRef();
+  const largeMacbookRef = useRef();
+  const activeGroupRef = useRef(null);
+  const timelineRef = useRef(null);
 
-    gsap.to(group.position, {x, duration: ANIMATION_DURATION})
-}
+  const showLargeMacbook = scale === 0.08 || scale === 0.05;
 
+  useGSAP(() => {
+    const incomingGroup = showLargeMacbook
+      ? largeMacbookRef.current
+      : smallMacbookRef.current;
+    const otherGroup = showLargeMacbook
+      ? smallMacbookRef.current
+      : largeMacbookRef.current;
 
-const ModelSwitcher = ({scale, isMobile}) => {
+    if (!incomingGroup || !otherGroup) return;
 
-    const smallMacbookRef = useRef();
-    const largeMacbookRef = useRef();
+    if (!activeGroupRef.current) {
+      gsap.set(incomingGroup.position, { x: 0 });
+      gsap.set(otherGroup.position, {
+        x: showLargeMacbook ? -TRANSITION_DISTANCE : TRANSITION_DISTANCE,
+      });
+      incomingGroup.visible = true;
+      otherGroup.visible = false;
+      activeGroupRef.current = incomingGroup;
+      return;
+    }
 
-    const showLargeMacbook = scale === 0.08 || scale === 0.05;
+    const outgoingGroup = activeGroupRef.current;
+    if (outgoingGroup === incomingGroup) return;
 
-    useGSAP(() => {
-        if (showLargeMacbook) {
-            moveGroup(smallMacbookRef.current, -OFFSET_DISTANCE);
-            moveGroup(largeMacbookRef.current, 0);
-            fadeMashes(smallMacbookRef.current, 0);
-            fadeMashes(largeMacbookRef.current, 1);
-        } else {
-            moveGroup(smallMacbookRef.current, 0);
-            moveGroup(largeMacbookRef.current, -OFFSET_DISTANCE);
-            fadeMashes(smallMacbookRef.current, 1);
-            fadeMashes(largeMacbookRef.current, 0);
-        }  
-    }, [scale]);
+    timelineRef.current?.kill();
+    const incomingStartX = showLargeMacbook
+      ? TRANSITION_DISTANCE
+      : -TRANSITION_DISTANCE;
+    const outgoingEndX = -incomingStartX;
+    const outgoingMaterials = getMaterials(outgoingGroup);
+    const incomingMaterials = getMaterials(incomingGroup);
 
+    gsap.set(outgoingGroup.position, { x: 0 });
+    gsap.set(incomingGroup.position, { x: incomingStartX });
+    outgoingGroup.visible = true;
+    incomingGroup.visible = true;
+    [...outgoingMaterials, ...incomingMaterials].forEach((material) => {
+      if (!material.transparent) {
+        material.transparent = true;
+        material.needsUpdate = true;
+      }
+      material.opacity = 1;
+    });
 
-    const controlsConfig = {
-        snap: true,
-        speed: 1,
-        zoom: 1,
-        config: { mass: 1, tension: 0, friction: 26 },
-        azimuth: [-Infinity, Infinity]
-    };
+    const timeline = gsap.timeline({
+      onComplete: () => {
+        outgoingGroup.visible = false;
+        gsap.set(outgoingGroup.position, { x: -incomingStartX });
+        gsap.set(outgoingMaterials, { opacity: 1 });
+      },
+    });
+
+    timeline
+      .to(outgoingGroup.position, {
+        x: outgoingEndX,
+        duration: 0.45,
+        ease: "power2.inOut",
+      }, 0)
+      .to(incomingGroup.position, {
+        x: 0,
+        duration: 0.45,
+        ease: "power2.inOut",
+      }, 0)
+      .to(outgoingMaterials, {
+        opacity: 0,
+        duration: 0.45,
+        ease: "power2.inOut",
+      }, 0);
+
+    timelineRef.current = timeline;
+    activeGroupRef.current = incomingGroup;
+
+    return () => timeline.kill();
+  }, [showLargeMacbook]);
+
+  const controlsConfig = {
+    snap: true,
+    speed: 1,
+    zoom: 1,
+    config: { mass: 1, tension: 170, friction: 26 },
+    azimuth: [-Infinity, Infinity],
+  };
+
   return (
-    <>
     <PresentationControls {...controlsConfig}>
-        <group ref={largeMacbookRef}>
-            <MacbookModel16 scale={isMobile ? 0.05 : 0.08} />
-        </group>
-    </PresentationControls >
-    <PresentationControls {...controlsConfig}>
-        <group ref={smallMacbookRef}>
-            <MacbookModel14 scale={isMobile ? 0.03 : 0.06} />
-        </group>
+      <group ref={largeMacbookRef}>
+        <MacbookModel16 scale={isMobile ? 0.05 : 0.08} />
+      </group>
+      <group ref={smallMacbookRef}>
+        <MacbookModel14 scale={isMobile ? 0.03 : 0.06} />
+      </group>
     </PresentationControls>
+  );
+};
 
-    </>
-  )
-}
-
-export default ModelSwitcher
+export default ModelSwitcher;
