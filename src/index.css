@@ -141,10 +141,10 @@ body {
   }
 
   #product-viewer {
-    @apply container relative min-h-[93vh] mx-auto px-5 2xl:px-0 mt-40;
+    @apply container relative min-h-[93vh] mx-auto px-5 2xl:px-0 mt-24 lg:mt-32;
 
     h2 {
-      @apply text-white font-semibold text-3xl lg:text-6xl;
+      @apply text-white font-semibold text-4xl sm:text-5xl lg:text-7xl;
     }
 
     .controls {
@@ -176,7 +176,7 @@ body {
     }
 
     #canvas {
-      @apply !w-full !h-[80vh] lg:!h-dvh relative z-40 -translate-y-24;
+      @apply !w-full !h-[80vh] lg:!h-dvh relative z-40 translate-y-0 lg:-translate-y-12;
     }
   }
 
