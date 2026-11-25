@@ -8,11 +8,96 @@ Source: https://sketchfab.com/3d-models/macbook-pro-m3-16-inch-2024-8e34fc2b3031
 Title: macbook pro M3 16 inch 2024
 */
 
-import React from 'react'
+import { useEffect, useRef } from 'react'
 import { useGLTF } from '@react-three/drei'
+import { Color, LinearFilter, SRGBColorSpace, VideoTexture } from 'three'
+import gsap from 'gsap'
+import { noChangeParts } from '../../constants'
+import useMacbookStore from '../../store'
 
 export default function MacbookModel(props) {
-  const { nodes, materials } = useGLTF('/models/macbook-transformed.glb')
+  const color = useMacbookStore((state) => state.color);
+  const activeVideo = useMacbookStore(
+    (state) => state.videos[state.texture] ?? null,
+  );
+  const { nodes, materials, scene } = useGLTF('/models/macbook-transformed.glb');
+  const screenMaterialRef = useRef(null);
+  const screenTextureRef = useRef(null);
+
+  useEffect(() => {
+    scene.traverse((child) => {
+      if (child.isMesh && !noChangeParts.includes(child.name)) {
+        child.material.color = new Color(color);
+      }
+    });
+  }, [color, scene]);
+
+  useEffect(() => {
+    const material = screenMaterialRef.current;
+    if (!activeVideo || !material) return undefined;
+
+    let active = true;
+    const showVideo = () => {
+      if (!active) return;
+
+      const screenTexture = new VideoTexture(activeVideo);
+      screenTexture.colorSpace = SRGBColorSpace;
+      screenTexture.generateMipmaps = false;
+      screenTexture.minFilter = LinearFilter;
+      screenTexture.magFilter = LinearFilter;
+
+      const previousTexture = screenTextureRef.current;
+      screenTextureRef.current = screenTexture;
+      material.map = screenTexture;
+      material.needsUpdate = true;
+      previousTexture?.dispose();
+
+      activeVideo.currentTime = 0;
+      activeVideo.play()
+        .then(() => {
+          if (active) {
+            gsap.to(material, {
+              opacity: 1,
+              duration: 0.25,
+              ease: 'power2.out',
+            });
+          }
+        })
+        .catch((error) => {
+          if (active) {
+            console.error('Unable to play the active feature video', error);
+          }
+        });
+    };
+    const handleCanPlay = () => {
+      activeVideo.removeEventListener('canplay', handleCanPlay);
+      showVideo();
+    };
+    const transition = gsap.to(material, {
+      opacity: 0,
+      duration: screenTextureRef.current ? 0.18 : 0,
+      ease: 'power2.in',
+      onComplete: () => {
+        if (activeVideo.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+          showVideo();
+        } else {
+          activeVideo.addEventListener('canplay', handleCanPlay, { once: true });
+        }
+      },
+    });
+
+    return () => {
+      active = false;
+      transition.kill();
+      activeVideo.removeEventListener('canplay', handleCanPlay);
+      activeVideo.pause();
+    };
+  }, [activeVideo]);
+
+  useEffect(() => () => {
+    screenTextureRef.current?.dispose();
+  }, []);
+
   return (
     <group {...props} dispose={null}>
       <mesh geometry={nodes.Object_10.geometry} material={materials.PaletteMaterial001} rotation={[Math.PI / 2, 0, 0]} />
@@ -32,7 +117,15 @@ export default function MacbookModel(props) {
       <mesh geometry={nodes.Object_82.geometry} material={materials.gMtYExgrEUqPfln} rotation={[Math.PI / 2, 0, 0]} />
       <mesh geometry={nodes.Object_96.geometry} material={materials.PaletteMaterial003} rotation={[Math.PI / 2, 0, 0]} />
       <mesh geometry={nodes.Object_107.geometry} material={materials.JvMFZolVCdpPqjj} rotation={[Math.PI / 2, 0, 0]} />
-      <mesh geometry={nodes.Object_123.geometry} material={materials.sfCQkHOWyrsLmor} rotation={[Math.PI / 2, 0, 0]} />
+      <mesh geometry={nodes.Object_123.geometry} rotation={[Math.PI / 2, 0, 0]} >
+        <meshBasicMaterial
+          ref={screenMaterialRef}
+          transparent
+          opacity={0}
+          toneMapped={false}
+        />
+      </mesh>
+
       <mesh geometry={nodes.Object_127.geometry} material={materials.ZCDwChwkbBfITSW} rotation={[Math.PI / 2, 0, 0]} />
     </group>
   )
