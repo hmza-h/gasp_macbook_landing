@@ -108,7 +108,7 @@ const features = [
         icon: "/feature-icon5.svg",
         highlight: "Writing Tool.",
         text: "Write smarter and faster, whether it’s blogs, essays, or captions, AI helps polish your words.",
-        styles: "left-5 md:left-20 top-[90%] opacity-0 translate-y-5",
+        styles: "left-5 md:left-20 top-[70%] opacity-0 translate-y-5",
     },
 ];
 
